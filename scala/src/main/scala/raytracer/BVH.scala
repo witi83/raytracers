@@ -47,21 +47,16 @@ object BVH {
     def go(d: Int, n: Int, objs: List[A]): BVH[A] = objs match {
       case Nil => throw new RuntimeException("BVH.apply: empty no nodes")
       case x :: Nil => Leaf(f(x), x)
-      case xs => {
-        val (xsLeft, xsRight) =
-          xs.sortBy(a => f(a).axis(d))
-            .splitAt(n / 2)
-        def doLeft() = go(d+1, (n/2), xsLeft)
-        def doRight() = go(d+1, n-n/2, xsRight)
-        val (left, right) = if(n < 100) {
-          (doLeft(), doRight())
-        } else {
-          (doLeft(), doRight())
-        }
+      case xs =>
+        val halfN = n / 2
+        val (xsLeft, xsRight) = xs.sortBy(a => f(a).axis(d)).splitAt(halfN)
+        val nextD = d + 1
+        val left = go(nextD, halfN, xsLeft)
+        val right = go(nextD, n - halfN, xsRight)
         val box = left.getAABB.surroundingBox(right.getAABB)
         Split(box, left, right)
-      }
     }
+
     go(0, allObjs.length, allObjs)
   }
 }
