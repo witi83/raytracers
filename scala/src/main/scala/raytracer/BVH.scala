@@ -1,8 +1,5 @@
 package raytracer
 import scala.collection.immutable.Nil
-import scala.concurrent.{Await, Future}
-import scala.concurrent.duration.Duration
-import scala.concurrent.ExecutionContext
 
 final case class AABB(min: Vec3, max: Vec3) {
   @inline def surroundingBox(that: AABB): AABB = {
@@ -45,7 +42,7 @@ final case class Split[A](aabb: AABB, left: BVH[A], right: BVH[A]) extends BVH[A
 object BVH {
   import scala.math.Ordering.Double.IeeeOrdering
 
-  def apply[A](f: A => AABB, allObjs: List[A])(implicit ec: ExecutionContext): BVH[A] = {
+  def apply[A](f: A => AABB, allObjs: List[A]): BVH[A] = {
 
     def go(d: Int, n: Int, objs: List[A]): BVH[A] = objs match {
       case Nil => throw new RuntimeException("BVH.apply: empty no nodes")
@@ -59,9 +56,7 @@ object BVH {
         val (left, right) = if(n < 100) {
           (doLeft(), doRight())
         } else {
-          val l = Future { doLeft() }
-          val r = Future { doRight() }
-          (Await.result(l, Duration.Inf), Await.result(r, Duration.Inf))
+          (doLeft(), doRight())
         }
         val box = left.getAABB.surroundingBox(right.getAABB)
         Split(box, left, right)
