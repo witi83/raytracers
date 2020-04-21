@@ -9,28 +9,33 @@ object Raytracer {
   final val Black: Color = Vec3(0, 0, 0)
   final val White: Color = Vec3(1, 1, 1)
 
+  private[this] final class Go(var min: Double, var max: Double)
+
   final case class Ray(origin: Pos, dir: Dir) {
 
     @inline def pointAtParam(t: Double): Pos = origin + dir.scale(t)
 
     def aabbHit(aabb: AABB, tMin0: Double, tMax0: Double): Boolean = {
-      def go(min_ : Double, max_ : Double, origin_ : Double, dir_ : Double, tMin_ : Double, tMax_ : Double): (Double, Double) = {
+      def go(min_ : Double, max_ : Double, origin_ : Double, dir_ : Double, minMax: Go): Unit = {
         val invD = 1.0 / dir_
         val t0 = (min_ - origin_) * invD
         val t1 = (max_ - origin_) * invD
-        val (t0_, t1_) = if (invD < 0) (t1, t0) else (t0, t1)
-        val tMin__ = t0_ max tMin_
-        val tMax__ = t1_ min tMax_
-        (tMin__, tMax__)
+        val t0_ = if (invD < 0) t1 else t0
+        val t1_ = if (invD < 0) t0 else t1
+        val tMin__ = t0_ max minMax.min
+        val tMax__ = t1_ min minMax.max
+        minMax.min = tMin__
+        minMax.max = tMax__
       }
-      val (tMin1, tMax1) = go(aabb.min.x, aabb.max.x, origin.x, dir.x, tMin0, tMax0)
-      if(tMax1 <= tMin1) false
+      val minMax = new Go(tMin0, tMax0)
+      go(aabb.min.x, aabb.max.x, origin.x, dir.x, minMax)
+      if(minMax.max <= minMax.min) false
       else {
-        val (tMin2, tMax2) = go(aabb.min.y, aabb.max.y, origin.y, dir.y, tMin1, tMax1)
-        if(tMax2 <= tMin2) false
+        go(aabb.min.y, aabb.max.y, origin.y, dir.y, minMax)
+        if(minMax.max <= minMax.min) false
         else {
-          val (tMin3, tMax3) = go(aabb.min.z, aabb.max.z, origin.z, dir.z, tMin2, tMax2)
-          tMax3 > tMin3
+          go(aabb.min.z, aabb.max.z, origin.z, dir.z, minMax)
+          minMax.max > minMax.min
         }
       }
     }
@@ -49,7 +54,6 @@ object Raytracer {
       val b = oc dot ray.dir
       val c = (oc dot oc) - radius * radius
       val discriminant = b*b - a*c
-      val sqrtDiscriminant = math.sqrt(discriminant)
       def tryHit(temp: Double) =
         if(temp < tMax && temp > tMin) {
           val point = ray.pointAtParam(temp)
@@ -57,9 +61,13 @@ object Raytracer {
         } else None
 
       if(discriminant <= 0) None
-      else tryHit((-b - sqrtDiscriminant) / a) match {
-        case s: Some[Hit] => s
-        case None => tryHit((-b + sqrtDiscriminant)/a)
+      else {
+        val sqrtDiscriminant = math.sqrt(discriminant)
+
+        tryHit((-b - sqrtDiscriminant) / a) match {
+          case s: Some[Hit] => s
+          case None => tryHit((-b + sqrtDiscriminant)/a)
+        }
       }
     }
 
